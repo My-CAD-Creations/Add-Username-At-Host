@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+    <schema id="org.gnome.shell.extensions.add-username-at-host" path="/org/gnome/shell/extensions/add-username-at-host/">
+        <key name="show-local-ip" type="b">
+            <default>false</default>
+            <summary>Show Local IP</summary>
+            <description>Show the local IP address in the panel button label.</description>
+        </key>
+        <key name="show-wan-ip" type="b">
+            <default>false</default>
+            <summary>Show WAN IP</summary>
+            <description>Show the WAN IP address in the panel button label.</description>
+        </key>
+    </schema>
+</schemalist>
