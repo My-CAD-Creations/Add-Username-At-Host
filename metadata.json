@@ -1,8 +1,7 @@
 {
     "uuid": "add-username-at-host@my-cad-creations.github.com",
-    "name": "Add user@host + LAN & WAN IPs to the panel.",
+    "name": "Add User@Host + LAN & WAN IPs to the panel.",
     "description": "Adds user@host to the panel.  Your LAN & WAN IPs can be displayed also.",
-    "original-author": "dandaman96",
     "url": "https://github.com/My-CAD-Creations/Add-Username-At-Host/", 
     "shell-version": ["43"],
     "version": 2,
