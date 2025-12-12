@@ -1,36 +1,31 @@
-const { St, GLib, Gio, Clutter } = imports.gi;
-const Main = imports.ui.main;
-const PanelMenu = imports.ui.panelMenu;
-const PopupMenu = imports.ui.popupMenu;
-const ByteArray = imports.byteArray;
-const ExtensionUtils = imports.misc.extensionUtils;
-const Mainloop = imports.mainloop;
+// NEW IMPORTS: Using modern gi:// and resource:/// paths
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'; 
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'; 
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'; 
 
-class AddUsernameAtHostExtension {
-    constructor() {
+import St from 'gi://St';
+import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
+import Clutter from 'gi://Clutter';
+import GObject from 'gi://GObject';
+
+export default class AddUsernameAtHostExtension extends Extension {
+    constructor(metadata) {
+        super(metadata);
         this._settings = null;
         this._panelButton = null;
-        this._updateInterval = 10;  // Update interval in seconds
+        this._localIP = '...';    
+        this._wanIP = '...';      
+        this._updateInterval = 10; 
+        this._updateLoop = null;   
     }
 
     enable() {
-        log('Enabling AddUsernameAtHostExtension');
+        // Removed: log('Enabling AddUsernameAtHostExtension');
 
         try {
-            const schemaDir = ExtensionUtils.getCurrentExtension().path + '/schemas';
-            const schemaSource = Gio.SettingsSchemaSource.new_from_directory(
-                schemaDir,
-                Gio.SettingsSchemaSource.get_default(),
-                false
-            );
-
-            log('Setting up GSettings');
-            const schema = schemaSource.lookup('org.gnome.shell.extensions.add-username-at-host', true);
-            if (!schema) {
-                throw new Error('Schema org.gnome.shell.extensions.add-username-at-host could not be found');
-            }
-
-            this._settings = new Gio.Settings({ settings_schema: schema });
+            this._settings = this.getSettings();
 
             this._settings.connect('changed::show-local-ip', () => this._updateLabelText());
             this._settings.connect('changed::show-wan-ip', () => this._updateLabelText());
@@ -38,38 +33,63 @@ class AddUsernameAtHostExtension {
             let username = GLib.get_user_name();
             let hostname = GLib.get_host_name();
 
-            log(`Username: ${username}, Hostname: ${hostname}`);
+            // Removed: log(`Username: ${username}, Hostname: ${hostname}`);
+            
+            // 1. Initialize the Panel Button
             this._panelButton = new PanelMenu.Button(0.0, "Add-Username-At-Host", false);
             this._label = new St.Label({
-                text: `${username}@${hostname}`,
+                text: `${username}@${hostname}`, 
                 y_expand: true,
                 y_align: Clutter.ActorAlign.CENTER,
             });
             this._panelButton.add_child(this._label);
-
-            this._getLocalIP((localIP) => {
-                this._localIP = localIP;
-                log(`Local IP: ${this._localIP}`);
-
-                this._getWanIP((wanIP) => {
-                    log(`WAN IP: ${wanIP}`);
-                    this._wanIP = wanIP;
-                    this._addMenuItems(this._localIP, this._wanIP);
-                    this._updateLabelText();
-                    this._startUpdateLoop();
-                });
-            });
-
+            
+            // 2. Add the button to the panel immediately
             Main.panel.addToStatusArea("add-username-at-host", this._panelButton);
+            
+            // 3. Setup menu with placeholder IPs
+            this._addMenuItems(this._localIP, this._wanIP); 
+
+            // 4. Start fetching the real IPs asynchronously
+            this._fetchAndSetupIPs();
+
+            // 5. Start the periodic update loop
+            this._startUpdateLoop();
+
         } catch (e) {
-            logError(e, 'Error enabling Add-Username-At-Host extension');
+            // Kept: logError is important for catching major initialization failures
+            logError(e, 'Error enabling Add-Username-At-Host extension', e); 
         }
+    }
+
+    _fetchAndSetupIPs() {
+        this._getLocalIP((localIP) => {
+            this._localIP = localIP;
+            // Removed: log(`Local IP: ${this._localIP}`);
+
+            this._getWanIP((wanIP) => {
+                this._wanIP = wanIP;
+                // Removed: log(`WAN IP: ${this._wanIP}`);
+                
+                this._updateLabelText();
+                this._addMenuItems(this._localIP, this._wanIP);
+            });
+        });
     }
 
     _getLocalIP(callback) {
         try {
-            let [status, stdout, stderr] = GLib.spawn_command_line_sync("hostname -I");
-            let localIP = status ? ByteArray.toString(stdout).trim() : "N/A";
+            let [ok, stdout, stderr, exit_status] = GLib.spawn_command_line_sync("hostname -I");
+            
+            if (!ok) {
+                 // Kept: Log failure details for external commands
+                 log(`hostname -I failed. Exit status: ${exit_status}. Error: ${new TextDecoder().decode(stderr).trim()}`);
+            }
+            
+            let localIP = ok 
+                ? new TextDecoder().decode(stdout).trim()
+                : "N/A";
+                
             callback(localIP);
         } catch (e) {
             logError(e, 'Error fetching Local IP');
@@ -84,11 +104,23 @@ class AddUsernameAtHostExtension {
                 flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
             });
 
-            proc.init(null);
+            proc.init(null); 
+            
             proc.communicate_utf8_async(null, null, (proc, res) => {
-                let [ok, stdout, stderr] = proc.communicate_utf8_finish(res);
-                let wanIP = ok ? stdout.trim() : "N/A";
-                callback(wanIP);
+                try {
+                    let [ok, stdout, stderr] = proc.communicate_utf8_finish(res);
+                    
+                    if (!ok) {
+                        // Kept: Log failure details for external commands
+                        log(`curl ifconfig.me failed. Error: ${stderr.trim()}`);
+                    }
+
+                    let wanIP = ok ? stdout.trim() : "N/A";
+                    callback(wanIP);
+                } catch (e) {
+                    logError(e, 'Error finishing WAN IP subprocess');
+                    callback("N/A");
+                }
             });
         } catch (e) {
             logError(e, 'Error fetching WAN IP');
@@ -104,10 +136,14 @@ class AddUsernameAtHostExtension {
 
         let labelText = `${username}@${hostname}`;
         if (showLocalIP) {
-            labelText += `   LAN: ${this._localIP}`;
+            if (this._localIP && this._localIP !== '...') {
+                labelText += `    LAN: ${this._localIP}`;
+            }
         }
         if (showWanIP) {
-            labelText += `   WAN: ${this._wanIP}`;
+            if (this._wanIP && this._wanIP !== '...') {
+                labelText += `    WAN: ${this._wanIP}`;
+            }
         }
         this._label.set_text(labelText);
     }
@@ -118,29 +154,45 @@ class AddUsernameAtHostExtension {
 
         menu.addMenuItem(new PopupMenu.PopupMenuItem(`Local IP: ${localIP}`));
         menu.addMenuItem(new PopupMenu.PopupMenuItem(`WAN IP: ${wanIP}`));
+        
+        menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        
+        let prefsItem = new PopupMenu.PopupMenuItem("Settings");
+        prefsItem.connect('activate', () => {
+            this.openPreferences(); 
+        });
+        menu.addMenuItem(prefsItem);
     }
 
     _startUpdateLoop() {
-        log('Starting update loop');
-        this._updateLoop = Mainloop.timeout_add_seconds(this._updateInterval, () => {
+        // Removed: log('Starting update loop');
+        
+        this._updateLoop = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, this._updateInterval, () => {
             this._checkForIPChanges();
-            return true; // Continue the loop
+            return GLib.SOURCE_CONTINUE; 
         });
     }
 
     _checkForIPChanges() {
         this._getLocalIP((localIP) => {
+            let updateNeeded = false;
+            
             if (localIP !== this._localIP) {
-                log(`Local IP changed: ${localIP}`);
+                // Kept: This log is useful for confirming a change happened
+                // log(`Local IP changed: ${localIP}`);
                 this._localIP = localIP;
-                this._updateLabelText();
-                this._addMenuItems(this._localIP, this._wanIP);
+                updateNeeded = true;
             }
 
             this._getWanIP((wanIP) => {
                 if (wanIP !== this._wanIP) {
-                    log(`WAN IP changed: ${wanIP}`);
+                    // Kept: This log is useful for confirming a change happened
+                    // log(`WAN IP changed: ${wanIP}`);
                     this._wanIP = wanIP;
+                    updateNeeded = true;
+                }
+                
+                if (updateNeeded) {
                     this._updateLabelText();
                     this._addMenuItems(this._localIP, this._wanIP);
                 }
@@ -149,19 +201,21 @@ class AddUsernameAtHostExtension {
     }
 
     disable() {
-        log('Disabling AddUsernameAtHostExtension');
+        // Removed: log('Disabling AddUsernameAtHostExtension');
+        
+        if (this._updateLoop) {
+            GLib.source_remove(this._updateLoop);
+            this._updateLoop = null;
+        }
+
         if (this._panelButton) {
             this._panelButton.destroy();
             this._panelButton = null;
         }
-        if (this._updateLoop) {
-            Mainloop.source_remove(this._updateLoop);
-            this._updateLoop = null;
+        
+        if (this._settings) {
+             this._settings.run_dispose();
+             this._settings = null;
         }
     }
 }
-
-function init() {
-    return new AddUsernameAtHostExtension();
-}
-

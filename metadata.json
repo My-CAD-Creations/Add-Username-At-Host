@@ -1,9 +1,16 @@
 {
-    "uuid": "add-username-at-host@my-cad-creations.github.com",
-    "name": "Add User@Host + LAN & WAN IPs to the panel.",
-    "description": "Adds user@host to the panel.  Your LAN & WAN IPs can be displayed also.",
-    "url": "https://github.com/My-CAD-Creations/Add-Username-At-Host/", 
-    "shell-version": ["43"],
-    "version": 2,
-    "settings-schema": "org.gnome.shell.extensions.add-username-at-host"
+  "uuid": "add-username-at-host@my-cad-creations.github.com",
+  "name": "Add User@Host + LAN & WAN IPs to the panel.",
+  "description": "Adds user@host to the panel. Your LAN & WAN IPs can be displayed also.",
+  "url": "https://github.com/My-CAD-Creations/Add-Username-At-Host/",
+  
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48" 
+  ],
+  
+  "version": 3,
+  "settings-schema": "org.gnome.shell.extensions.add-username-at-host"
 }
